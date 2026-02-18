@@ -25,15 +25,13 @@ import { useAuthAccount } from '@/lib/useAuthAccount'
 import { ContractListResponse } from '@snagsolutions/sdk/resources/minting/contracts.mjs'
 import { MintingGetAssetsResponse } from '@snagsolutions/sdk/resources/minting/minting.mjs'
 import { useEffect, useState } from 'react'
-import { useAccount, useConfig, useConnect, usePublicClient } from 'wagmi'
+import { useConfig, usePublicClient } from 'wagmi'
 
 export const Minting = () => {
   const { website, isLoading: isWebsiteLoading } = useWebsiteContext()
   const { walletAddress, connect } = useAuthAccount()
   const walletAccount = useWalletAccount()
-  const { isConnected } = useAccount()
   const wagmiConfig = useConfig()
-  const { connectAsync, connectors } = useConnect()
   const publicClient = usePublicClient()
   const [contracts, setContracts] = useState<ContractListResponse['data']>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -46,7 +44,6 @@ export const Minting = () => {
   const [mintingByAsset, setMintingByAsset] = useState<Record<string, boolean>>(
     {}
   )
-
 
   useEffect(() => {
     const fetchContracts = async () => {
@@ -99,11 +96,9 @@ export const Minting = () => {
         await sleep(500)
       }
 
-      if (!isConnected) {
-        const firstConnector = connectors?.[0]
-        if (firstConnector) {
-          await connectAsync({ connector: firstConnector })
-        }
+      if (!walletAccount.isConnected) {
+        walletAccount.requestConnect()
+        return
       }
 
       const walletClient = await getReadyWalletClient(wagmiConfig, chainId)
@@ -167,7 +162,8 @@ export const Minting = () => {
         currency: currency,
         validityStartTimestamp:
           toBigInt(payload.validityStartTimestamp) ?? BigInt(0),
-        validityEndTimestamp: toBigInt(payload.validityEndTimestamp) ?? BigInt(0),
+        validityEndTimestamp:
+          toBigInt(payload.validityEndTimestamp) ?? BigInt(0),
         uid: payload.uid,
       }
 
@@ -183,7 +179,8 @@ export const Minting = () => {
         currency: currency,
         validityStartTimestamp:
           toBigInt(payload.validityStartTimestamp) ?? BigInt(0),
-        validityEndTimestamp: toBigInt(payload.validityEndTimestamp) ?? BigInt(0),
+        validityEndTimestamp:
+          toBigInt(payload.validityEndTimestamp) ?? BigInt(0),
         uid: payload.uid,
       }
 
@@ -274,7 +271,8 @@ export const Minting = () => {
                       {contract._count.mintingContractAssets} assets
                     </Header>
                     <Header as="p" className="text-sm text-gray-500">
-                      {contract.tokenType === 'erc721' || contract.tokenType === 'erc721c'
+                      {contract.tokenType === 'erc721' ||
+                      contract.tokenType === 'erc721c'
                         ? '721'
                         : contract.tokenType === 'erc1155'
                           ? '1155'
@@ -311,22 +309,29 @@ export const Minting = () => {
                                 <Header as="p">
                                   {asset?.name || 'Untitled'}
                                 </Header>
-                                <Header as="p" className="text-sm text-gray-500">
+                                <Header
+                                  as="p"
+                                  className="text-sm text-gray-500"
+                                >
                                   {asset?.id}
                                 </Header>
-                                <Header as="p" className="text-sm text-gray-500">
+                                <Header
+                                  as="p"
+                                  className="text-sm text-gray-500"
+                                >
                                   {Number(asset?.quantityMinted || 0)}/
                                   {Number(asset?.quantity || 0)} minted
                                 </Header>
-                                <Header as="p" className="text-sm text-gray-500">
+                                <Header
+                                  as="p"
+                                  className="text-sm text-gray-500"
+                                >
                                   {(() => {
                                     const rawPrice = asset?.price
                                     const currencyLabel =
                                       asset?.loyaltyCurrency?.symbol ||
                                       asset?.loyaltyCurrency?.name ||
-                                      (asset?.currencyAddress
-                                        ? 'Token'
-                                        : 'ETH')
+                                      (asset?.currencyAddress ? 'Token' : 'ETH')
                                     if (!rawPrice || Number(rawPrice) === 0) {
                                       return currencyLabel
                                         ? `Free (${currencyLabel})`
@@ -334,7 +339,7 @@ export const Minting = () => {
                                     }
                                     const decimals =
                                       typeof asset?.currencyDecimals ===
-                                        'number'
+                                      'number'
                                         ? asset.currencyDecimals
                                         : 0
                                     const priceNumber =
@@ -346,9 +351,7 @@ export const Minting = () => {
                               <Button
                                 variant="secondary"
                                 disabled={mintingByAsset[asset?.id]}
-                                onClick={() =>
-                                  handleMint(contract, asset?.id)
-                                }
+                                onClick={() => handleMint(contract, asset?.id)}
                               >
                                 {!walletAddress
                                   ? 'Connect Wallet'
