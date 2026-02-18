@@ -97,7 +97,7 @@ export const Minting = () => {
       }
 
       if (!walletAccount.isConnected) {
-        walletAccount.requestConnect()
+        await walletAccount.requestConnect()
         return
       }
 

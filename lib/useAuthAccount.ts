@@ -83,7 +83,14 @@ export const useAuthAccount = () => {
 
   useEffect(() => {
     async function connectWallet() {
-      await signInWallet(account)
+      try {
+        await signInWallet(account)
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : 'Unknown authentication error'
+        console.error('Wallet authentication failed:', err)
+        alert(`Wallet authentication failed: ${message}`)
+      }
     }
     if (
       account.address &&
@@ -103,9 +110,11 @@ export const useAuthAccount = () => {
     isLoading: session.status === 'loading',
     connect: async () => {
       try {
-        account.requestConnect()
+        await account.requestConnect()
       } catch (err: unknown) {
-        console.error(err instanceof Error ? err?.message : 'Unknown error')
+        const message = err instanceof Error ? err?.message : 'Unknown error'
+        console.error(message)
+        alert(`Wallet connection failed: ${message}`)
       }
     },
     disconnect: async () => {

@@ -19,11 +19,20 @@ import {
 
 const parseChainId = (chainId?: string): number | undefined => {
   if (!chainId) return undefined
-  if (chainId.startsWith('0x')) return parseInt(chainId, 16)
-  return parseInt(chainId, 10)
+  const parsed = chainId.startsWith('0x')
+    ? parseInt(chainId, 16)
+    : parseInt(chainId, 10)
+  return Number.isNaN(parsed) ? undefined : parsed
 }
 
 function FallbackWalletAccountInner({ children }: { children: ReactNode }) {
+  const getNotReadyError = () => {
+    const message =
+      'Dogeos wallet is not ready yet. Please refresh or try again in a moment.'
+    alert(message)
+    return new Error(message)
+  }
+
   const value: WalletAccountContextType = {
     address: '' as Hex,
     chainId: undefined,
@@ -33,10 +42,16 @@ function FallbackWalletAccountInner({ children }: { children: ReactNode }) {
     isDisconnected: true,
     isReconnecting: false,
     status: 'disconnected',
-    switchNetwork: async () => {},
-    disconnectWallet: async () => {},
+    switchNetwork: async () => {
+      throw getNotReadyError()
+    },
+    disconnectWallet: async () => {
+      throw getNotReadyError()
+    },
     signMessage: undefined,
-    requestConnect: () => {},
+    requestConnect: async () => {
+      throw getNotReadyError()
+    },
   }
 
   return (
@@ -59,30 +74,34 @@ function DogeosWalletAccountInner({ children }: { children: ReactNode }) {
   }: {
     networkChainId?: string | number
   }) => {
+    const numChainId = Number(networkChainId)
+    if (!isSupportedChain(numChainId)) {
+      const message = 'This chain is not supported in this demo.'
+      alert(message)
+      throw new Error(message)
+    }
+    const chainInfo = ViemChainByChainId[numChainId as SupportedChainId]
+    if (!chainInfo) {
+      throw new Error('Unable to load chain info for network switch.')
+    }
+
     try {
-      const numChainId = Number(networkChainId)
-      if (!isSupportedChain(numChainId)) {
-        alert('This chain is not supported in this demo.')
-        return
-      }
-      const chainInfo = ViemChainByChainId[numChainId as SupportedChainId]
-      if (chainInfo) {
-        await dogeosAccount.switchChain({
-          chainType: 'evm',
-          chainInfo: {
-            id: chainInfo.id,
-            name: chainInfo.name,
-            nativeCurrency: chainInfo.nativeCurrency,
-            rpcUrls: {
-              default: {
-                http: [...chainInfo.rpcUrls.default.http],
-              },
+      await dogeosAccount.switchChain({
+        chainType: 'evm',
+        chainInfo: {
+          id: chainInfo.id,
+          name: chainInfo.name,
+          nativeCurrency: chainInfo.nativeCurrency,
+          rpcUrls: {
+            default: {
+              http: [...chainInfo.rpcUrls.default.http],
             },
           },
-        })
-      }
+        },
+      })
     } catch (e) {
       console.error(e)
+      throw e
     }
   }
 
@@ -91,6 +110,7 @@ function DogeosWalletAccountInner({ children }: { children: ReactNode }) {
       await walletConnect.disconnect()
     } catch (e) {
       console.error(e)
+      throw e
     }
   }
 
@@ -110,7 +130,7 @@ function DogeosWalletAccountInner({ children }: { children: ReactNode }) {
     switchNetwork,
     disconnectWallet,
     signMessage: dogeosAccount.signMessage,
-    requestConnect: () => {
+    requestConnect: async () => {
       walletConnect.openModal()
     },
   }

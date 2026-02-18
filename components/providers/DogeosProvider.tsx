@@ -17,12 +17,17 @@ let getConnectorsFn: typeof import('@dogeos/dogeos-sdk').getConnectors | null =
 // eslint-disable-next-line no-var
 var sdkReady: Promise<void> | null = null
 if (typeof window !== 'undefined') {
-  sdkReady = import('@dogeos/dogeos-sdk').then((mod) => {
-    WalletConnectProvider = mod.WalletConnectProvider
-    getChainsFn = mod.getChains
-    getConnectorsFn = mod.getConnectors
-    import('@dogeos/dogeos-sdk/style.css')
-  })
+  sdkReady = import('@dogeos/dogeos-sdk')
+    .then(async (mod) => {
+      WalletConnectProvider = mod.WalletConnectProvider
+      getChainsFn = mod.getChains
+      getConnectorsFn = mod.getConnectors
+      await import('@dogeos/dogeos-sdk/style.css')
+    })
+    .catch((err) => {
+      console.error('DogeosProvider: Failed to load SDK bundle', err)
+      throw err
+    })
 }
 
 type DogeosProviderProps = {
@@ -31,63 +36,75 @@ type DogeosProviderProps = {
 
 export function DogeosProvider({ children }: DogeosProviderProps) {
   const [isReady, setIsReady] = useState(false)
-  const [chains, setChains] = useState<any>(undefined)
-  const [connectors, setConnectors] = useState<any>(undefined)
+  const [initError, setInitError] = useState<string | null>(null)
+  const [chains, setChains] =
+    useState<WalletConnectKitConfig['chains']>(undefined)
+  const [connectors, setConnectors] =
+    useState<WalletConnectKitConfig['connectors']>(undefined)
 
   useEffect(() => {
     let cancelled = false
 
     async function init() {
+      if (!sdkReady) {
+        if (!cancelled) {
+          setInitError('Dogeos SDK is unavailable in this browser context.')
+        }
+        return
+      }
+
       try {
         // Wait for dynamic import
         await sdkReady
-
-        // Fetch chains and connectors in parallel, catch individually
-        const [chainsResult, connectorsResult] = await Promise.allSettled([
-          getChainsFn?.(),
-          getConnectorsFn?.(),
-        ])
-
-        if (cancelled) return
-
-        if (chainsResult.status === 'fulfilled' && chainsResult.value) {
-          // EVM-only: filter to only evm chains
-          setChains({ evm: chainsResult.value.evm || [] })
-        } else {
-          // EVM-only fallback: use full viem chain objects
-          setChains({
-            evm: getAllSupportedChains().map((c) => ({
-              id: c.id,
-              name: c.name,
-              nativeCurrency: c.nativeCurrency,
-              rpcUrls: {
-                default: { http: [...c.rpcUrls.default.http] },
-              },
-            })),
-          })
-          if (chainsResult.status === 'rejected') {
-            console.error(
-              'DogeosProvider: Failed to fetch chains, using EVM defaults',
-              chainsResult.reason
-            )
-          }
+      } catch (err) {
+        if (!cancelled) {
+          setInitError('Dogeos SDK failed to load. Check console for details.')
         }
+        console.error('DogeosProvider: SDK load failed', err)
+        return
+      }
 
-        if (connectorsResult.status === 'fulfilled') {
-          setConnectors(connectorsResult.value)
-        } else {
+      // Fetch chains and connectors in parallel, catch individually
+      const [chainsResult, connectorsResult] = await Promise.allSettled([
+        getChainsFn?.(),
+        getConnectorsFn?.(),
+      ])
+
+      if (cancelled) return
+
+      if (chainsResult.status === 'fulfilled' && chainsResult.value) {
+        // EVM-only: filter to only evm chains
+        setChains({ evm: chainsResult.value.evm || [] })
+      } else {
+        // EVM-only fallback: use full viem chain objects
+        setChains({
+          evm: getAllSupportedChains().map((c) => ({
+            id: c.id,
+            name: c.name,
+            nativeCurrency: c.nativeCurrency,
+            rpcUrls: {
+              default: { http: [...c.rpcUrls.default.http] },
+            },
+          })),
+        })
+        if (chainsResult.status === 'rejected') {
           console.error(
-            'DogeosProvider: Failed to fetch connectors, using SDK defaults',
-            connectorsResult.reason
+            'DogeosProvider: Failed to fetch chains, using EVM defaults',
+            chainsResult.reason
           )
         }
-      } catch (err) {
-        console.error('DogeosProvider: Init failed', err)
-      } finally {
-        if (!cancelled) {
-          setIsReady(true)
-        }
       }
+
+      if (connectorsResult.status === 'fulfilled') {
+        setConnectors(connectorsResult.value)
+      } else {
+        console.error(
+          'DogeosProvider: Failed to fetch connectors, using SDK defaults',
+          connectorsResult.reason
+        )
+      }
+
+      setIsReady(true)
     }
 
     init()
@@ -115,6 +132,17 @@ export function DogeosProvider({ children }: DogeosProviderProps) {
     }),
     [chains, connectors]
   )
+
+  if (initError) {
+    return (
+      <DogeosReadyContext.Provider value={false}>
+        <div className="w-full rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+          {initError}
+        </div>
+        {children}
+      </DogeosReadyContext.Provider>
+    )
+  }
 
   if (!isReady || !WalletConnectProvider) {
     return (

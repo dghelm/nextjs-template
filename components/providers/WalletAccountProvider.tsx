@@ -24,7 +24,7 @@ const DogeosWalletAccountOuter = dynamic(
 function WagmiWalletAccountInner({ children }: { children: ReactNode }) {
   const account = useAccount()
   const { disconnectAsync } = useDisconnect()
-  const { connectors, connect } = useConnect()
+  const { connectors, connectAsync } = useConnect()
   const signMessageWagmi = useSignMessage()
 
   useEffect(() => {
@@ -32,7 +32,9 @@ function WagmiWalletAccountInner({ children }: { children: ReactNode }) {
       let chainId = account?.chainId
       if (!isSupportedChain(chainId)) chainId = 1
 
-      switchNetwork({ networkChainId: chainId })
+      switchNetwork({ networkChainId: chainId }).catch((error) => {
+        console.error('Failed to switch network on account change:', error)
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.chainId])
@@ -44,19 +46,16 @@ function WagmiWalletAccountInner({ children }: { children: ReactNode }) {
     networkChainId?: string | number
     networkChain?: Chain
   }) => {
-    try {
-      if (!isSupportedChain(networkChainId)) {
-        const chainName = networkChain?.name || 'Unknown Chain'
-        alert(`${chainName} is not supported in this demo.`)
-        return
-      }
-      if (account?.connector && account.chainId != networkChainId) {
-        await account?.connector?.switchChain?.({
-          chainId: +(networkChainId ?? 1),
-        })
-      }
-    } catch (e) {
-      console.error(e)
+    if (!isSupportedChain(networkChainId)) {
+      const chainName = networkChain?.name || 'Unknown Chain'
+      const message = `${chainName} is not supported in this demo.`
+      alert(message)
+      throw new Error(message)
+    }
+    if (account?.connector && account.chainId != networkChainId) {
+      await account?.connector?.switchChain?.({
+        chainId: +(networkChainId ?? 1),
+      })
     }
   }
 
@@ -65,6 +64,7 @@ function WagmiWalletAccountInner({ children }: { children: ReactNode }) {
       await disconnectAsync?.()
     } catch (e) {
       console.error(e)
+      throw e
     }
   }
 
@@ -86,11 +86,12 @@ function WagmiWalletAccountInner({ children }: { children: ReactNode }) {
     signMessage: async ({ message }) => {
       return signMessageWagmi.signMessageAsync({ message })
     },
-    requestConnect: () => {
+    requestConnect: async () => {
       const connector = connectors?.[0]
-      if (connector) {
-        connect({ connector })
+      if (!connector) {
+        throw new Error('No wallet connector available.')
       }
+      await connectAsync({ connector })
     },
   }
 

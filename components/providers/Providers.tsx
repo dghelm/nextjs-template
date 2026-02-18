@@ -8,7 +8,7 @@ import { WebsiteProvider } from '@/components/providers/WebsiteProvider'
 import { getAllSupportedChains } from '@/lib/chains'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SessionProvider } from 'next-auth/react'
-import { ReactNode } from 'react'
+import { ReactNode, useState } from 'react'
 import { createClient, http } from 'viem'
 import { createConfig, WagmiProvider } from 'wagmi'
 import { injected } from 'wagmi/connectors'
@@ -42,7 +42,8 @@ export const defaultWagmiConfig = () => {
 }
 
 export default function Providers({ children }: ProvidersProps) {
-  const queryClient = new QueryClient()
+  const [queryClient] = useState(() => new QueryClient())
+  const [wagmiConfig] = useState(() => defaultWagmiConfig())
 
   const inner = (
     <WalletAccountProvider mode={walletMode}>
@@ -53,7 +54,7 @@ export default function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
-        <WagmiProvider config={defaultWagmiConfig()}>
+        <WagmiProvider config={wagmiConfig}>
           <WebsiteProvider>
             {walletMode === 'dogeos' ? (
               <DogeosProvider>{inner}</DogeosProvider>

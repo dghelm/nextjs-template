@@ -23,7 +23,7 @@ export interface WalletAccountContextType {
     // eslint-disable-next-line no-unused-vars
     params: { message: string; nonce?: string }
   ) => Promise<string | Uint8Array>
-  requestConnect: () => void
+  requestConnect: () => Promise<void>
 }
 
 export const WalletAccountContext = createContext<
