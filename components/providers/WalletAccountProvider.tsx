@@ -1,43 +1,42 @@
 'use client'
 
 import { isSupportedChain } from '@/lib/chains'
-import React, { createContext, ReactNode, useContext, useEffect } from 'react'
+import React, { ReactNode, useEffect } from 'react'
 import { Chain, Hex } from 'viem'
-import { useAccount, useDisconnect } from 'wagmi'
+import { useAccount, useConnect, useDisconnect, useSignMessage } from 'wagmi'
+import dynamic from 'next/dynamic'
+import {
+  WalletAccountContext,
+  WalletAccountContextType,
+} from './WalletAccountContext'
 
-interface WalletAccountContextType {
-  address: Hex
-  chainId?: number | string
-  isConnected: boolean
-  isConnecting: boolean
-  isDisconnected: boolean
-  isReconnecting: boolean
-  status: 'connected' | 'reconnecting' | 'connecting' | 'disconnected'
-  switchNetwork: ({
-    networkChainId,
-  }: {
-    networkChainId?: string | number
-  }) => Promise<void>
-  disconnectWallet: () => Promise<void>
-}
+export type {
+  WalletProviderMode,
+  WalletAccountContextType,
+} from './WalletAccountContext'
+export { useWalletAccount } from './WalletAccountContext'
 
-const WalletAccountContext = createContext<
-  WalletAccountContextType | undefined
->(undefined)
+const DogeosWalletAccountOuter = dynamic(
+  () => import('./DogeosWalletAccount'),
+  { ssr: false }
+)
 
-export const WalletAccountProvider: React.FC<{
-  children: ReactNode
-}> = ({ children }) => {
+function WagmiWalletAccountInner({ children }: { children: ReactNode }) {
   const account = useAccount()
   const { disconnectAsync } = useDisconnect()
+  const { connectors, connectAsync } = useConnect()
+  const signMessageWagmi = useSignMessage()
 
   useEffect(() => {
     if (account?.chainId) {
       let chainId = account?.chainId
       if (!isSupportedChain(chainId)) chainId = 1
 
-      switchNetwork({ networkChainId: chainId })
+      switchNetwork({ networkChainId: chainId }).catch((error) => {
+        console.error('Failed to switch network on account change:', error)
+      })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.chainId])
 
   const switchNetwork = async ({
@@ -47,31 +46,32 @@ export const WalletAccountProvider: React.FC<{
     networkChainId?: string | number
     networkChain?: Chain
   }) => {
-    try {
-      if (!isSupportedChain(networkChainId)) {
-        const chainName = networkChain?.name || 'Unknown Chain'
-        alert(`${chainName} is not supported in this demo.`)
-        return
-      }
-      if (account?.connector && account.chainId != networkChainId) {
-        await account?.connector?.switchChain?.({
-          chainId: +(networkChainId ?? 1),
-        })
-      }
-    } catch (e) {
-      console.error(e)
+    if (!isSupportedChain(networkChainId)) {
+      const chainName = networkChain?.name || 'Unknown Chain'
+      const message = `${chainName} is not supported in this demo.`
+      alert(message)
+      throw new Error(message)
+    }
+    if (account?.connector && account.chainId != networkChainId) {
+      await account?.connector?.switchChain?.({
+        chainId: +(networkChainId ?? 1),
+      })
     }
   }
 
   const disconnectWallet = async () => {
     try {
       await disconnectAsync?.()
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+      throw e
+    }
   }
 
   const value: WalletAccountContextType = {
     address: account?.address as Hex,
     chainId: account?.chainId,
+    chainType: 'evm',
     isConnected: account?.isConnected,
     isConnecting: account?.isConnecting,
     isDisconnected: account?.isDisconnected,
@@ -83,6 +83,16 @@ export const WalletAccountProvider: React.FC<{
       | 'disconnected',
     switchNetwork,
     disconnectWallet,
+    signMessage: async ({ message }) => {
+      return signMessageWagmi.signMessageAsync({ message })
+    },
+    requestConnect: async () => {
+      const connector = connectors?.[0]
+      if (!connector) {
+        throw new Error('No wallet connector available.')
+      }
+      await connectAsync({ connector })
+    },
   }
 
   return (
@@ -92,12 +102,13 @@ export const WalletAccountProvider: React.FC<{
   )
 }
 
-export const useWalletAccount = (): WalletAccountContextType => {
-  const context = useContext(WalletAccountContext)
-  if (context === undefined) {
-    throw new Error(
-      'useWalletAccount must be used within a WalletAccountProvider'
-    )
+export const WalletAccountProvider: React.FC<{
+  children: ReactNode
+  mode?: 'wagmi' | 'dogeos'
+}> = ({ children, mode = 'wagmi' }) => {
+  if (mode === 'dogeos') {
+    return <DogeosWalletAccountOuter>{children}</DogeosWalletAccountOuter>
   }
-  return context
+
+  return <WagmiWalletAccountInner>{children}</WagmiWalletAccountInner>
 }

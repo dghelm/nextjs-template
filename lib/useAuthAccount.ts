@@ -2,28 +2,44 @@ import { useWalletAccount } from '@/components/providers/WalletAccountProvider'
 import { getCsrfToken, signIn, signOut, useSession } from 'next-auth/react'
 import { useEffect, useMemo } from 'react'
 import { SiweMessage } from 'siwe'
-import { useConnect, useSignMessage } from 'wagmi'
+
+const isEvmAddress = (addr: string) => /^0x[a-fA-F0-9]{40}$/.test(addr)
+
+const uint8ArrayToHex = (arr: Uint8Array): string =>
+  '0x' +
+  Array.from(arr)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
 
 /**
  * Get the wallet authentication signature
  */
 export const getWalletAuthSignature = async (
-  account: ReturnType<typeof useWalletAccount>,
-  signMessage: ReturnType<typeof useSignMessage>
+  account: ReturnType<typeof useWalletAccount>
 ) => {
+  if (!account.signMessage) {
+    throw new Error('signMessage is not available')
+  }
+
+  const nonce = await getCsrfToken()
   const message = new SiweMessage({
     domain: window.location.host,
     statement: 'Sign in to the app. Powered by Snag Solutions.',
     uri: window.location.origin,
     version: '1',
     chainId: Number(account.chainId ?? 1),
-    nonce: await getCsrfToken(),
+    nonce,
     address: account.address,
   })
 
-  const signatureOrToken = await signMessage.signMessageAsync({
-    message: message.prepareMessage(),
+  const preparedMessage = message.prepareMessage()
+  const result = await account.signMessage({
+    message: preparedMessage,
+    nonce,
   })
+
+  const signatureOrToken =
+    result instanceof Uint8Array ? uint8ArrayToHex(result) : result
 
   return {
     signatureOrToken,
@@ -36,14 +52,13 @@ export const getWalletAuthSignature = async (
  * Sign in the user with the wallet address and signature
  */
 export const signInWallet = async (
-  account: ReturnType<typeof useWalletAccount>,
-  signMessage: ReturnType<typeof useSignMessage>
+  account: ReturnType<typeof useWalletAccount>
 ) => {
   const { signatureOrToken, message, walletAddress } =
-    await getWalletAuthSignature(account, signMessage)
+    await getWalletAuthSignature(account)
 
   const token = await signIn('credentials', {
-    message: !!message ? JSON.stringify(message) : message,
+    message: message ? JSON.stringify(message) : message,
     accessToken: signatureOrToken,
     signature: signatureOrToken,
     walletAddress: walletAddress,
@@ -61,8 +76,6 @@ export const signInWallet = async (
 export const useAuthAccount = () => {
   const session = useSession()
   const account = useWalletAccount()
-  const signMessageWagmi = useSignMessage()
-  const { connectors, connect } = useConnect()
   const isAuthenticated = useMemo(
     () => !!session.data?.user,
     [session.data?.user]
@@ -70,10 +83,24 @@ export const useAuthAccount = () => {
 
   useEffect(() => {
     async function connectWallet() {
-      await signInWallet(account, signMessageWagmi)
+      try {
+        await signInWallet(account)
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : 'Unknown authentication error'
+        console.error('Wallet authentication failed:', err)
+        alert(`Wallet authentication failed: ${message}`)
+      }
     }
-    if (account.address && session.status === 'unauthenticated') connectWallet()
-  }, [account.address, session.status])
+    if (
+      account.address &&
+      isEvmAddress(account.address) &&
+      account.chainType === 'evm' &&
+      session.status === 'unauthenticated'
+    )
+      connectWallet()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account.address, account.chainType, session.status])
 
   return {
     isAuthenticated,
@@ -83,11 +110,11 @@ export const useAuthAccount = () => {
     isLoading: session.status === 'loading',
     connect: async () => {
       try {
-        await connect({
-          connector: connectors?.[0],
-        })
+        await account.requestConnect()
       } catch (err: unknown) {
-        console.error(err instanceof Error ? err?.message : 'Unknown error')
+        const message = err instanceof Error ? err?.message : 'Unknown error'
+        console.error(message)
+        alert(`Wallet connection failed: ${message}`)
       }
     },
     disconnect: async () => {

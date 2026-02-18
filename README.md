@@ -35,9 +35,38 @@ LOYALTY_CURRENCY_ID=your_loyalty_currency_id
 ENABLE_TWITTER_RULES=boolean # Optional
 ENABLE_TELEGRAM_RULES=boolean # Optional
 RULES_COLLECTIONS='[{"address":"0x123","network":"mainnet"}]' # Optional
+NEXT_PUBLIC_WALLET_PROVIDER=wagmi # Optional: "wagmi" (default) or "dogeos"
 ```
 
 You can generate your key and copy UUIDs in the API KEYS tab on the admin dashboard.
+
+### Wallet Provider
+
+The template supports two wallet connection providers, controlled by `NEXT_PUBLIC_WALLET_PROVIDER`:
+
+- **`wagmi`** (default) — Uses wagmi's `injected()` connector for browser extension wallets (MetaMask, etc.). Standard EVM wallet flow.
+- **`dogeos`** — Uses `@dogeos/dogeos-sdk` for wallet connections with social login support (email, Google, X) and embedded wallets. Includes all features of wagmi mode plus social login.
+
+To switch to dogeos, set in your `.env`:
+
+```env
+NEXT_PUBLIC_WALLET_PROVIDER=dogeos
+```
+
+Both modes use the same authentication flow (SIWE + next-auth) and the same on-chain operations (wagmi). The wallet provider only affects how users connect their wallet.
+
+To verify each mode works:
+
+```sh
+# Default (wagmi) — browser extension wallets
+pnpm template:dev
+
+# Dogeos — social login + embedded wallets
+NEXT_PUBLIC_WALLET_PROVIDER=dogeos pnpm template:dev
+
+# Invalid value — falls back to wagmi
+NEXT_PUBLIC_WALLET_PROVIDER=foo pnpm template:dev
+```
 
 ### Running the Development Server
 
