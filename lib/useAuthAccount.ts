@@ -70,12 +70,15 @@ export const useAuthAccount = () => {
     [session.data?.user]
   )
 
+  const isEvmWallet = account.chainType === 'evm'
+
   useEffect(() => {
     async function connectWallet() {
       await signInWallet(account)
     }
-    if (account.address && session.status === 'unauthenticated') connectWallet()
-  }, [account.address, session.status])
+    if (account.address && isEvmWallet && session.status === 'unauthenticated')
+      connectWallet()
+  }, [account.address, isEvmWallet, session.status])
 
   return {
     isAuthenticated,

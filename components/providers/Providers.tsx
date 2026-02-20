@@ -7,6 +7,7 @@ import type { WalletConnectKitConfig } from '@dogeos/dogeos-sdk'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SessionProvider } from 'next-auth/react'
 import { ReactNode } from 'react'
+import { base, mainnet } from 'viem/chains'
 import { ErrorHandlerProvider } from './ErrorHandlerProvider'
 
 const config: WalletConnectKitConfig = {
@@ -17,6 +18,10 @@ const config: WalletConnectKitConfig = {
     url: typeof window !== 'undefined' ? window.location.origin : '',
     icons: [],
   },
+  chains: {
+    evm: [mainnet, base],
+  },
+  defaultConnectChain: 'evm',
   login: {
     basicLogins: ['email', 'externalWallets'],
     socialLogins: [{ type: 'google' }, { type: 'x' }],

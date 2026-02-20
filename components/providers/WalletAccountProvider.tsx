@@ -20,6 +20,7 @@ interface WalletAccountContextType {
   }) => Promise<void>
   disconnectWallet: () => Promise<void>
   signMessage?: (params: { message: string }) => Promise<string | Uint8Array>
+  chainType?: string
 }
 
 const WalletAccountContext = createContext<
@@ -72,6 +73,7 @@ export const WalletAccountProvider: React.FC<{
     switchNetwork,
     disconnectWallet,
     signMessage: dogeAccount.signMessage,
+    chainType: dogeAccount.chainType,
   }
 
   return (
