@@ -9,7 +9,7 @@ import { SessionProvider } from 'next-auth/react'
 import { ReactNode } from 'react'
 import { ErrorHandlerProvider } from './ErrorHandlerProvider'
 
-const dogeConfig: WalletConnectKitConfig = {
+const config: WalletConnectKitConfig = {
   clientId: process.env.NEXT_PUBLIC_DOGEOS_CLIENT_ID!,
   metadata: {
     name: 'Snag Solutions',
@@ -29,7 +29,7 @@ export default function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
-        <WalletConnectProvider config={dogeConfig}>
+        <WalletConnectProvider config={config}>
           <WebsiteProvider>
             <WalletAccountProvider>
               <ErrorHandlerProvider>{children}</ErrorHandlerProvider>

@@ -1,7 +1,7 @@
 'use client'
 
 import {
-  useAccount as useDogeAccount,
+  useAccount,
   useWalletConnect,
 } from '@dogeos/dogeos-sdk'
 import React, { createContext, ReactNode, useContext } from 'react'
@@ -29,7 +29,7 @@ const WalletAccountContext = createContext<
 export const WalletAccountProvider: React.FC<{
   children: ReactNode
 }> = ({ children }) => {
-  const dogeAccount = useDogeAccount()
+  const dogeAccount = useAccount()
   const { isConnected, isConnecting, disconnect } = useWalletConnect()
 
   const switchNetwork = async ({
