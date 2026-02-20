@@ -1,0 +1,11 @@
+packages:
+  - '.'
+onlyBuiltDependencies:
+  - '@heroui/shared-utils'
+  - bigint-buffer
+  - cbor-extract
+  - msgpackr-extract
+  - protobufjs
+  - scryptlib
+  - secp256k1
+  - tiny-secp256k1
