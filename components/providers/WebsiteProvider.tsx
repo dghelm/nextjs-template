@@ -26,9 +26,14 @@ export const WebsiteProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const fetchInitialData = async () => {
       setIsLoading(true)
-      const website = await getWebsite()
-      setData(website.data?.[0])
-      setIsLoading(false)
+      try {
+        const website = await getWebsite()
+        setData(website.data?.[0])
+      } catch (e) {
+        console.error('Failed to fetch website:', e)
+      } finally {
+        setIsLoading(false)
+      }
     }
     fetchInitialData()
   }, [])
