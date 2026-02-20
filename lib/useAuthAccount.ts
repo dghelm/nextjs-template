@@ -2,7 +2,8 @@ import { useWalletAccount } from '@/components/providers/WalletAccountProvider'
 import { getCsrfToken, signIn, signOut, useSession } from 'next-auth/react'
 import { useEffect, useMemo } from 'react'
 import { SiweMessage } from 'siwe'
-import { useConnect, useSignMessage } from 'wagmi'
+import { useWalletConnect } from '@dogeos/dogeos-sdk'
+import { useSignMessage } from 'wagmi'
 
 /**
  * Get the wallet authentication signature
@@ -62,7 +63,7 @@ export const useAuthAccount = () => {
   const session = useSession()
   const account = useWalletAccount()
   const signMessageWagmi = useSignMessage()
-  const { connectors, connect } = useConnect()
+  const { openModal } = useWalletConnect()
   const isAuthenticated = useMemo(
     () => !!session.data?.user,
     [session.data?.user]
@@ -83,9 +84,7 @@ export const useAuthAccount = () => {
     isLoading: session.status === 'loading',
     connect: async () => {
       try {
-        await connect({
-          connector: connectors?.[0],
-        })
+        openModal()
       } catch (err: unknown) {
         console.error(err instanceof Error ? err?.message : 'Unknown error')
       }
